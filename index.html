@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trình Quét Mã QR CCCD</title>
+    <title>Trình Quét Mã QR CCCD (Có Zoom)</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root {
@@ -47,12 +47,6 @@
             margin-bottom: 15px;
         }
 
-        .tab-hint {
-            font-size: 0.85rem;
-            color: #6B7280;
-            margin-bottom: 20px;
-        }
-
         #reader {
             width: 100%;
             border-radius: 12px;
@@ -64,6 +58,28 @@
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        /* Thanh trượt Zoom */
+        .zoom-controls {
+            display: none; /* Sẽ hiện lên khi camera hỗ trợ Zoom */
+            background: #F3F4F6;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .zoom-controls label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .zoom-controls input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary-color);
         }
 
         .controls {
@@ -82,14 +98,10 @@
             cursor: pointer;
             color: white;
             width: 100%;
-            transition: opacity 0.2s;
         }
 
-        .btn:active { transform: scale(0.98); }
         .btn-start { background-color: var(--primary-color); }
         .btn-stop { background-color: var(--danger-color); display: none; }
-        
-        /* Nút tải ảnh lên để quét CCCD cực nét */
         .btn-upload {
             background-color: #D97706; 
             display: block;
@@ -97,9 +109,7 @@
             line-height: normal;
         }
 
-        input[type="file"] {
-            display: none;
-        }
+        input[type="file"] { display: none; }
 
         .result-box {
             background-color: #EFF6FF;
@@ -127,47 +137,46 @@
             overflow-y: auto;
             white-space: pre-wrap;
         }
-
-        .btn-copy {
-            background-color: var(--success-color);
-            margin-top: 10px;
-            width: 100%;
-        }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>Quét Mã QR CCCD</h1>
-        <p class="tab-hint">💡 Mẹo: Quét trực tiếp camera khó, hãy dùng nút <b>Chụp/Tải ảnh CCCD</b> bên dưới để quét chính xác 100%.</p>
         
-        <!-- Khung camera -->
         <div id="reader"></div>
+
+        <!-- Khung điều chỉnh Zoom -->
+        <div id="zoom-controls" class="zoom-controls">
+            <label for="zoom-slider">Mức Zoom: <span id="zoom-val">2.0</span>x</label>
+            <input type="range" id="zoom-slider" min="1" max="5" step="0.1" value="2">
+        </div>
         
         <div class="controls">
             <button id="start-btn" class="btn btn-start" onclick="startScanner()">Bật Camera quét</button>
             <button id="stop-btn" class="btn btn-stop" onclick="stopScanner()">Tắt Camera</button>
             
-            <!-- Nút chọn ảnh từ máy / chụp trực tiếp bằng camera hệ thống -->
-            <label for="qr-input-file" class="btn btn-upload">📸 Chụp hoặc Chọn ảnh CCCD từ máy</label>
+            <label for="qr-input-file" class="btn btn-upload">📸 Chụp hoặc Chọn ảnh CCCD</label>
             <input type="file" id="qr-input-file" accept="image/*" onchange="scanImageFromFile(event)">
         </div>
 
-        <!-- Kết quả -->
         <div id="result-box" class="result-box">
             <div class="result-title">Kết quả dữ liệu CCCD:</div>
             <div id="result-text"></div>
-            <button id="copy-btn" class="btn btn-copy" onclick="copyResult()">Sao chép kết quả</button>
         </div>
     </div>
 
     <script>
         let html5QrCode;
+        let videoTrack; // Biến lưu trữ luồng camera để điều khiển zoom
         
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
         const resultBox = document.getElementById('result-box');
         const resultText = document.getElementById('result-text');
+        const zoomControls = document.getElementById('zoom-controls');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomVal = document.getElementById('zoom-val');
 
         function handleScanSuccess(decodedText) {
             resultText.innerText = decodedText;
@@ -175,7 +184,6 @@
             stopScanner();
         }
 
-        // 1. Quét qua Camera trực tiếp
         async function startScanner() {
             if (!html5QrCode) {
                 html5QrCode = new Html5Qrcode("reader");
@@ -183,15 +191,56 @@
             resultBox.style.display = 'none';
 
             try {
+                // Khởi động camera
                 await html5QrCode.start(
                     { facingMode: "environment" }, 
                     { fps: 15, qrbox: { width: 280, height: 280 } },
                     handleScanSuccess
                 );
+
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'block';
+
+                // --- XỬ LÝ TỰ ĐỘNG ZOOM ---
+                // Lấy luồng video đang chạy
+                videoTrack = html5QrCode.getRunningTrack();
+                if (videoTrack) {
+                    const capabilities = videoTrack.getCapabilities();
+                    
+                    // Kiểm tra xem trình duyệt/máy có hỗ trợ can thiệp Zoom không
+                    if ('zoom' in capabilities) {
+                        const minZoom = capabilities.zoom.min || 1;
+                        const maxZoom = capabilities.zoom.max || 5;
+                        const step = capabilities.zoom.step || 0.1;
+
+                        // Cấu hình thanh trượt theo giới hạn của thiết bị
+                        zoomSlider.min = minZoom;
+                        zoomSlider.max = maxZoom;
+                        zoomSlider.step = step;
+
+                        // Đặt mức Zoom mặc định là 2.0 (Nếu máy không tới 2.0 thì lấy max của máy)
+                        let defaultZoom = Math.min(maxZoom, 2.0);
+                        defaultZoom = Math.max(minZoom, defaultZoom);
+
+                        zoomSlider.value = defaultZoom;
+                        zoomVal.innerText = defaultZoom;
+                        zoomControls.style.display = 'block'; // Hiện thanh trượt
+
+                        // Lập tức áp dụng mức Zoom 2.0 vào camera
+                        await videoTrack.applyConstraints({ advanced: [{ zoom: defaultZoom }] });
+
+                        // Lắng nghe người dùng kéo thanh trượt để đổi Zoom
+                        zoomSlider.oninput = async function(e) {
+                            const zValue = parseFloat(e.target.value);
+                            zoomVal.innerText = zValue;
+                            await videoTrack.applyConstraints({ advanced: [{ zoom: zValue }] });
+                        }
+                    } else {
+                        console.log("Thiết bị hoặc trình duyệt không hỗ trợ API tự động Zoom.");
+                    }
+                }
             } catch (err) {
-                alert("Không mở được camera. Hãy chắc chắn bạn cấp quyền và dùng HTTPS/Localhost.");
+                alert("Lỗi camera: " + err);
             }
         }
 
@@ -200,36 +249,24 @@
                 html5QrCode.stop().then(() => {
                     startBtn.style.display = 'block';
                     stopBtn.style.display = 'none';
+                    zoomControls.style.display = 'none'; // Ẩn thanh trượt
                 }).catch(err => console.log(err));
             }
         }
 
-        // 2. Quét bằng cách tải file ảnh lên (KHUYÊN DÙNG CHO CCCD)
         function scanImageFromFile(e) {
             if (e.target.files.length == 0) return;
             const imageFile = e.target.files[0];
-            
-            // Dừng camera nếu đang bật
             stopScanner();
-
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
-            }
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
 
             html5QrCode.scanFile(imageFile, true)
                 .then(decodedText => {
                     handleScanSuccess(decodedText);
                 })
                 .catch(err => {
-                    alert("Không tìm thấy mã QR trong ảnh này. Hãy chắc chắn ảnh chụp cận cảnh, rõ nét mã QR trên CCCD!");
-                    console.error(err);
+                    alert("Không tìm thấy mã QR. Hãy chụp rõ nét hơn!");
                 });
-        }
-
-        function copyResult() {
-            navigator.clipboard.writeText(resultText.innerText).then(() => {
-                alert('Đã sao chép vào bộ nhớ tạm!');
-            });
         }
     </script>
 </body>
