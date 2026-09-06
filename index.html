@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trình Quét Mã QR</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        :root {
+            --primary-color: #4F46E5;
+            --danger-color: #EF4444;
+            --bg-color: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --text-main: #1F2937;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--text-main);
+        }
+
+        /* Khung chứa camera */
+        #reader {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px dashed #D1D5DB;
+            margin-bottom: 20px;
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            color: white;
+            flex: 1;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .btn-start {
+            background-color: var(--primary-color);
+        }
+
+        .btn-stop {
+            background-color: var(--danger-color);
+            display: none; /* Ẩn nút Dừng lúc ban đầu */
+        }
+
+        .btn-copy {
+            background-color: #10B981;
+            margin-top: 10px;
+            display: none; /* Ẩn nút Copy lúc ban đầu */
+            width: 100%;
+        }
+
+        .result-box {
+            background-color: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 10px;
+            word-break: break-all;
+            display: none; /* Ẩn khung kết quả lúc ban đầu */
+        }
+
+        .result-title {
+            font-size: 0.875rem;
+            color: #3B82F6;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        #result-text {
+            font-size: 1.125rem;
+            font-weight: 500;
+            color: #1E3A8A;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Quét Mã QR</h1>
+        
+        <div id="reader"></div>
+        
+        <div class="controls">
+            <button id="start-btn" class="btn-start" onclick="startScanner()">Bắt đầu quét</button>
+            <button id="stop-btn" class="btn-stop" onclick="stopScanner()">Dừng quét</button>
+        </div>
+
+        <div id="result-box" class="result-box">
+            <div class="result-title">Kết quả quét:</div>
+            <div id="result-text"></div>
+            <button id="copy-btn" class="btn-copy" onclick="copyResult()">Sao chép kết quả</button>
+        </div>
+    </div>
+
+    <script>
+        let html5QrCode;
+        
+        // Các elements UI
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const resultBox = document.getElementById('result-box');
+        const resultText = document.getElementById('result-text');
+        const copyBtn = document.getElementById('copy-btn');
+
+        // Hàm được gọi khi quét QR thành công
+        function onScanSuccess(decodedText, decodedResult) {
+            // Hiển thị kết quả ra màn hình
+            resultText.innerText = decodedText;
+            resultBox.style.display = 'block';
+            copyBtn.style.display = 'block';
+            
+            // Đổi text nút copy về mặc định nếu trước đó đã bấm
+            copyBtn.innerText = 'Sao chép kết quả';
+
+            // Dừng camera sau khi quét thành công để tiết kiệm pin (bạn có thể bỏ dòng này nếu muốn quét liên tục)
+            stopScanner();
+        }
+
+        // Hàm bắt đầu quét
+        function startScanner() {
+            // Khởi tạo instance nếu chưa có
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("reader");
+            }
+
+            // Ẩn kết quả cũ đi (nếu có)
+            resultBox.style.display = 'none';
+
+            // Cấu hình camera: ưu tiên camera sau (environment)
+            const config = { 
+                fps: 10, // Số khung hình trên giây để quét
+                qrbox: { width: 250, height: 250 } // Kích thước vùng lấy nét QR
+            };
+
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                .then(() => {
+                    // Cập nhật UI nút bấm
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'block';
+                })
+                .catch((err) => {
+                    console.error(err);
+                    alert("Không thể mở camera. Vui lòng kiểm tra quyền truy cập camera của trình duyệt!");
+                });
+        }
+
+        // Hàm dừng quét
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    // Cập nhật UI nút bấm
+                    startBtn.style.display = 'block';
+                    stopBtn.style.display = 'none';
+                }).catch((err) => {
+                    console.error("Lỗi khi dừng camera", err);
+                });
+            }
+        }
+
+        // Hàm sao chép kết quả vào Clipboard
+        function copyResult() {
+            const textToCopy = resultText.innerText;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                copyBtn.innerText = '✅ Đã sao chép!';
+                setTimeout(() => {
+                    copyBtn.innerText = 'Sao chép kết quả';
+                }, 2000);
+            }).catch(err => {
+                alert('Không thể sao chép: ', err);
+            });
+        }
+    </script>
+</body>
+</html>
