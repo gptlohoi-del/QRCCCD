@@ -146,60 +146,76 @@
     <script>
         let html5QrCode;
         
-        // Các elements UI
         const startBtn = document.getElementById('start-btn');
         const stopBtn = document.getElementById('stop-btn');
         const resultBox = document.getElementById('result-box');
         const resultText = document.getElementById('result-text');
         const copyBtn = document.getElementById('copy-btn');
 
-        // Hàm được gọi khi quét QR thành công
         function onScanSuccess(decodedText, decodedResult) {
-            // Hiển thị kết quả ra màn hình
             resultText.innerText = decodedText;
             resultBox.style.display = 'block';
             copyBtn.style.display = 'block';
-            
-            // Đổi text nút copy về mặc định nếu trước đó đã bấm
             copyBtn.innerText = 'Sao chép kết quả';
-
-            // Dừng camera sau khi quét thành công để tiết kiệm pin (bạn có thể bỏ dòng này nếu muốn quét liên tục)
             stopScanner();
         }
 
-        // Hàm bắt đầu quét
-        function startScanner() {
-            // Khởi tạo instance nếu chưa có
+        async function startScanner() {
             if (!html5QrCode) {
                 html5QrCode = new Html5Qrcode("reader");
             }
 
-            // Ẩn kết quả cũ đi (nếu có)
             resultBox.style.display = 'none';
 
-            // Cấu hình camera: ưu tiên camera sau (environment)
-            const config = { 
-                fps: 10, // Số khung hình trên giây để quét
-                qrbox: { width: 250, height: 250 } // Kích thước vùng lấy nét QR
-            };
+            try {
+                // Lấy danh sách camera trên thiết bị để ưu tiên chọn camera sau (environment) độ phân giải cao
+                const devices = await Html5Qrcode.getCameras();
+                let cameraId = { facingMode: "environment" }; // Mặc định dùng camera sau
 
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-                .then(() => {
-                    // Cập nhật UI nút bấm
-                    startBtn.style.display = 'none';
-                    stopBtn.style.display = 'block';
-                })
-                .catch((err) => {
-                    console.error(err);
-                    alert("Không thể mở camera. Vui lòng kiểm tra quyền truy cập camera của trình duyệt!");
-                });
+                if (devices && devices.length) {
+                    // Tìm camera có chữ "back", "rear", "environment" hoặc lấy camera cuối cùng (thường là camera chính góc rộng)
+                    const backCamera = devices.find(device => 
+                        device.label.toLowerCase().includes('back') || 
+                        device.label.toLowerCase().includes('rear') ||
+                        device.label.toLowerCase().includes('environment')
+                    );
+                    if (backCamera) {
+                        cameraId = backCamera.id;
+                    } else {
+                        cameraId = devices[devices.length - 1].id;
+                    }
+                }
+
+                // Cấu hình tối ưu cho mã QR nhỏ (tăng fps và kích thước khung quét)
+                const config = { 
+                    fps: 20, // Tăng số khung hình/giây để bắt nét nhanh hơn
+                    qrbox: function(viewfinderWidth, viewfinderHeight) {
+                        // Tạo khung quét linh hoạt bằng 80% màn hình để dễ căn chỉnh mã nhỏ
+                        let minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                        let qrboxSize = Math.floor(minEdge * 0.8);
+                        return { width: qrboxSize, height: qrboxSize };
+                    },
+                    aspectRatio: 1.0
+                };
+
+                await html5QrCode.start(
+                    cameraId, 
+                    config, 
+                    onScanSuccess
+                );
+
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+
+            } catch (err) {
+                console.error(err);
+                alert("Không thể khởi động camera. Vui lòng cấp quyền camera cho trình duyệt!");
+            }
         }
 
-        // Hàm dừng quét
         function stopScanner() {
-            if (html5QrCode) {
+            if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then(() => {
-                    // Cập nhật UI nút bấm
                     startBtn.style.display = 'block';
                     stopBtn.style.display = 'none';
                 }).catch((err) => {
@@ -208,7 +224,6 @@
             }
         }
 
-        // Hàm sao chép kết quả vào Clipboard
         function copyResult() {
             const textToCopy = resultText.innerText;
             navigator.clipboard.writeText(textToCopy).then(() => {
@@ -217,7 +232,7 @@
                     copyBtn.innerText = 'Sao chép kết quả';
                 }, 2000);
             }).catch(err => {
-                alert('Không thể sao chép: ', err);
+                alert('Không thể sao chép: ' + err);
             });
         }
     </script>
