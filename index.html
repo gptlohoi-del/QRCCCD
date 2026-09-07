@@ -231,6 +231,7 @@
 
 
         // --- BƯỚC 3: LOGIC QUÉT DÀNH RIÊNG CHO IOS (VÀ DỰ PHÒNG) ---
+        // --- BƯỚC 3: LOGIC QUÉT DÀNH RIÊNG CHO IOS (ĐÃ FIX LỖI ẢNH QUÁ TO) ---
         function processIOSImage(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -238,16 +239,51 @@
             resultBox.style.display = 'none';
             loadingDiv.style.display = 'block';
 
-            html5QrCode.scanFile(file, true)
-                .then(decodedText => {
-                    loadingDiv.style.display = 'none';
-                    displayResult(decodedText);
-                })
-                .catch(err => {
-                    loadingDiv.style.display = 'none';
-                    alert("Không tìm thấy mã QR. Hãy đảm bảo bạn đưa CCCD lại gần và chụp rõ nét nhé!");
-                });
-                
+            // Dùng FileReader để đọc ảnh
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = function () {
+                    // Tạo Canvas để nén ảnh
+                    const canvas = document.createElement("canvas");
+                    const MAX_SIZE = 1200; // Giới hạn kích thước ảnh
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Tính toán tỷ lệ thu nhỏ
+                    if (width > height && width > MAX_SIZE) {
+                        height *= MAX_SIZE / width;
+                        width = MAX_SIZE;
+                    } else if (height > MAX_SIZE) {
+                        width *= MAX_SIZE / height;
+                        height = MAX_SIZE;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Chuyển ảnh đã nén thành File mới
+                    canvas.toBlob((blob) => {
+                        const resizedFile = new File([blob], "resized_image.jpg", { type: "image/jpeg" });
+                        
+                        // Đưa ảnh đã thu nhỏ vào thư viện để quét
+                        html5QrCode.scanFile(resizedFile, true)
+                            .then(decodedText => {
+                                loadingDiv.style.display = 'none';
+                                displayResult(decodedText);
+                            })
+                            .catch(err => {
+                                loadingDiv.style.display = 'none';
+                                alert("Không tìm thấy mã. Hãy đưa camera lại GẦN MÃ QR HƠN để mã QR chiếm diện tích lớn trong ảnh nhé!");
+                            });
+                    }, "image/jpeg", 0.9);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            
             event.target.value = ''; // Reset để chụp lại được
         }
 
