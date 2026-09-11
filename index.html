@@ -137,167 +137,277 @@
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         // ==========================================
-        // BIẾN TOÀN CỤC
-        // ==========================================
-        let rawQRString = "";
-        let croppedImagesFiles = []; // Mảng chứa các file ảnh đã crop (dạng Blob)
-        let cropperInstance = null;
+    // 2. BIẾN TOÀN CỤC & KHỞI TẠO
+    // ==========================================
+    const deviceInfo = document.getElementById('device-info');
+    const androidSection = document.getElementById('android-section');
+    const iosSection = document.getElementById('ios-section');
+    const video = document.getElementById('video');
+    const placeholderText = document.getElementById('placeholder-text');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
+
+    let stream = null;
+    let barcodeDetector = null;
+    let scanning = false;
+    let html5QrCode = null;
+
+    let rawQRString = "";
+    let croppedImagesFiles = []; 
+    let cropperInstance = null;
+    
+    // Lấy hoặc tạo mã thiết bị
+    let maThietBi = localStorage.getItem('ma_thiet_bi');
+    if(!maThietBi) {
+        maThietBi = 'DEV-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+        localStorage.setItem('ma_thiet_bi', maThietBi);
+    }
+
+    window.onload = async () => {
+        detectDevice(); // Gọi hàm kiểm tra thiết bị
         
-        // Lấy mã thiết bị từ LocalStorage (hoặc tạo mới)
-        let maThietBi = localStorage.getItem('ma_thiet_bi');
-        if(!maThietBi) {
-            maThietBi = 'DEV-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-            localStorage.setItem('ma_thiet_bi', maThietBi);
-        }
-
-        // ==========================================
-        // KHỞI TẠO (Load danh sách đạo tràng)
-        // ==========================================
-        window.onload = async () => {
-            detectDevice();
-            // Load danh sách Đạo tràng từ Supabase
-            try {
-                const { data, error } = await supabase.from('danh_muc_dao_trang').select('id, ten_dao_trang');
-                if (data) {
-                    const select = document.getElementById('dao_trang_id');
-                    data.forEach(item => {
-                        select.innerHTML += `<option value="${item.id}">${item.ten_dao_trang}</option>`;
-                    });
-                }
-            } catch (e) {
-                console.log("Chưa cấu hình Supabase hợp lệ để load Đạo Tràng");
-            }
-        };
-
-        // ... (GIỮ NGUYÊN CÁC HÀM QUÉT QR CHO ANDROID VÀ IOS CỦA BẠN: detectDevice, fallbackToIOSMode, startAndroidCamera, scanLoop, stopAndroidCamera, processIOSImage) ...
-        // ĐỂ GỌN, TÔI TÓM TẮT HÀM XỬ LÝ KẾT QUẢ QR DƯỚI ĐÂY:
-
-        function displayResult(data) {
-            rawQRString = data;
-            const parts = data.split('|');
-            if (parts.length >= 6) {
-                document.getElementById('cccd_number').value = parts[0];
-                document.getElementById('ho_ten').value = parts[2];
-            } else {
-                alert("Mã QR không hợp lệ hoặc không phải CCCD");
-                return;
-            }
-            // Ẩn camera, hiện form
-            if (typeof stopAndroidCamera === "function") stopAndroidCamera();
-            document.getElementById('android-section').style.display = 'none';
-            document.getElementById('ios-section').style.display = 'none';
-            document.getElementById('registration-form').style.display = 'block';
-        }
-
-        // ==========================================
-        // XỬ LÝ CROP ẢNH KHUÔN MẶT
-        // ==========================================
-        function openCropper(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                document.getElementById('crop-image').src = e.target.result;
-                document.getElementById('crop-modal').style.display = 'flex';
-                
-                if (cropperInstance) cropperInstance.destroy();
-                cropperInstance = new Cropper(document.getElementById('crop-image'), {
-                    aspectRatio: 1, // Bắt buộc cắt hình vuông (Tối ưu cho nhận diện khuôn mặt)
-                    viewMode: 1,
-                    autoCropArea: 0.8
+        // Load danh sách Đạo tràng từ Supabase
+        try {
+            const { data, error } = await supabase.from('danh_muc_dao_trang').select('id, ten_dao_trang');
+            if (data) {
+                const select = document.getElementById('dao_trang_id');
+                data.forEach(item => {
+                    select.innerHTML += `<option value="${item.id}">${item.ten_dao_trang}</option>`;
                 });
-            };
-            reader.readAsDataURL(file);
-            event.target.value = ''; 
-        }
-
-        function closeCropper() {
-            document.getElementById('crop-modal').style.display = 'none';
-            if (cropperInstance) cropperInstance.destroy();
-        }
-
-        function finishCrop() {
-            if (!cropperInstance) return;
-            // Resize ảnh về 500x500 để siêu nhẹ (Khoảng 20-50KB/ảnh)
-            const canvas = cropperInstance.getCroppedCanvas({ width: 500, height: 500 });
-            
-            canvas.toBlob((blob) => {
-                // Hiển thị Preview
-                const url = URL.createObjectURL(blob);
-                document.getElementById('preview-container').innerHTML += `<img src="${url}">`;
-                
-                // Lưu vào mảng để chờ upload
-                croppedImagesFiles.push(blob);
-                closeCropper();
-            }, 'image/jpeg', 0.8);
-        }
-
-        // ==========================================
-        // GỬI DỮ LIỆU LÊN SUPABASE
-        // ==========================================
-        async function submitToSupabase() {
-            if(croppedImagesFiles.length === 0) {
-                alert("Vui lòng chụp ít nhất 1 ảnh khuôn mặt!");
-                return;
             }
-            const cccd = document.getElementById('cccd_number').value;
-            if(!cccd) return alert("Chưa có thông tin CCCD!");
+        } catch (e) {
+            console.log("Chưa kết nối Supabase, bỏ qua load đạo tràng.");
+        }
+    };
 
-            showLoading(true);
+    // ==========================================
+    // 3. LOGIC QUÉT QR CHÍNH (Lấy từ file cũ của bạn)
+    // ==========================================
+    function detectDevice() {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const hasBarcodeAPI = ('BarcodeDetector' in window);
 
-            let uploadedUrls = [];
-            let storagePaths = [];
-
+        if (!isIOS && hasBarcodeAPI) {
+            deviceInfo.innerText = "🤖 Chế độ siêu tốc (Android Native)";
+            deviceInfo.className = "device-badge badge-android";
+            androidSection.style.display = 'block';
             try {
-                // 1. UPLOAD TẤT CẢ ẢNH LÊN STORAGE
-                for (let i = 0; i < croppedImagesFiles.length; i++) {
-                    const blob = croppedImagesFiles[i];
-                    const fileName = `${cccd}_${Date.now()}_${i}.jpg`;
-                    
-                    const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(fileName, blob);
-                    if (error) throw error;
-
-                    // Lấy link public
-                    const { data: publicUrlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName);
-                    
-                    uploadedUrls.push(publicUrlData.publicUrl);
-                    storagePaths.push(fileName);
-                }
-
-                // 2. GHI THÔNG TIN VÀO BẢNG dang_ky_ra_vao
-                const formData = {
-                    subject_id: cccd, // Dùng CCCD làm mã định danh cho CompreFace
-                    ma_thiet_bi: maThietBi,
-                    ho_ten: document.getElementById('ho_ten').value,
-                    cccd_number: cccd,
-                    phap_danh: document.getElementById('phap_danh').value,
-                    sdt_lien_lac: document.getElementById('sdt').value,
-                    dao_trang_id: document.getElementById('dao_trang_id').value ? parseInt(document.getElementById('dao_trang_id').value) : null,
-                    qr_cccd: rawQRString,
-                    image_urls: uploadedUrls, // Dạng mảng text[]
-                    storage_file_paths: storagePaths, // Dạng mảng text[]
-                    approval_status: 'cho_duyet',
-                    is_synced: false
-                };
-
-                const { error: insertError } = await supabase.from('dang_ky_ra_vao').insert([formData]);
-                if (insertError) throw insertError;
-
-                alert("✅ Đăng ký thành công!");
-                window.location.reload(); // Tải lại trang để đăng ký người mới
-
-            } catch (err) {
-                alert("Lỗi: " + err.message);
-            } finally {
-                showLoading(false);
+                barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+            } catch(e) {
+                fallbackToIOSMode();
             }
+        } else {
+            fallbackToIOSMode();
         }
+    }
 
-        function showLoading(show) {
-            document.getElementById('loading-screen').style.display = show ? 'flex' : 'none';
+    function fallbackToIOSMode() {
+        deviceInfo.innerText = "🍎 Chế độ chụp nét (iOS / Fallback)";
+        deviceInfo.className = "device-badge badge-ios";
+        iosSection.style.display = 'block';
+        androidSection.style.display = 'none';
+        html5QrCode = new Html5Qrcode("qr-reader-hidden");
+    }
+
+    async function startAndroidCamera() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+            });
+            video.srcObject = stream;
+            video.style.display = 'block';
+            placeholderText.style.display = 'none';
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            video.onloadedmetadata = () => {
+                scanning = true;
+                requestAnimationFrame(scanLoop);
+            };
+        } catch (err) {
+            alert("Lỗi camera: " + err.message);
+            fallbackToIOSMode();
+        }
+    }
+
+    async function scanLoop() {
+        if (!scanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA && barcodeDetector) {
+            try {
+                const barcodes = await barcodeDetector.detect(video);
+                if (barcodes.length > 0) {
+                    displayResult(barcodes[0].rawValue);
+                    stopAndroidCamera();
+                    return; 
+                }
+            } catch (e) { console.error(e); }
+        }
+        requestAnimationFrame(scanLoop);
+    }
+
+    function stopAndroidCamera() {
+        scanning = false;
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        video.style.display = 'none';
+        placeholderText.style.display = 'block';
+        startBtn.style.display = 'block';
+        stopBtn.style.display = 'none';
+    }
+
+    function processIOSImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        showLoading(true);
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+                const canvas = document.createElement("canvas");
+                const MAX_SIZE = 1200; 
+                let width = img.width, height = img.height;
+                if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } 
+                else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                
+                canvas.width = width; canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    const resizedFile = new File([blob], "resized_image.jpg", { type: "image/jpeg" });
+                    html5QrCode.scanFile(resizedFile, true)
+                        .then(decodedText => {
+                            showLoading(false);
+                            displayResult(decodedText);
+                        })
+                        .catch(err => {
+                            showLoading(false);
+                            alert("Không tìm thấy mã QR.");
+                        });
+                }, "image/jpeg", 0.9);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+        event.target.value = ''; 
+    }
+
+    function displayResult(data) {
+        rawQRString = data;
+        const parts = data.split('|');
+        if (parts.length >= 6) {
+            document.getElementById('cccd_number').value = parts[0];
+            document.getElementById('ho_ten').value = parts[2];
+        } else {
+            alert("Mã QR không hợp lệ!");
+            return;
         }
         
-        // (Ghi chú: Hãy paste các hàm startAndroidCamera, processIOSImage... từ file cũ của bạn xuống đây)
-    </script>
+        // Ẩn camera, hiện form
+        if (typeof stopAndroidCamera === "function") stopAndroidCamera();
+        document.getElementById('android-section').style.display = 'none';
+        document.getElementById('ios-section').style.display = 'none';
+        document.getElementById('registration-form').style.display = 'block';
+    }
+
+    // ==========================================
+    // 4. XỬ LÝ CROP ẢNH (Dùng Cropper.js)
+    // ==========================================
+    function openCropper(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            document.getElementById('crop-image').src = e.target.result;
+            document.getElementById('crop-modal').style.display = 'flex';
+            
+            if (cropperInstance) cropperInstance.destroy();
+            cropperInstance = new Cropper(document.getElementById('crop-image'), {
+                aspectRatio: 1, 
+                viewMode: 1,
+                autoCropArea: 0.8
+            });
+        };
+        reader.readAsDataURL(file);
+        event.target.value = ''; 
+    }
+
+    function closeCropper() {
+        document.getElementById('crop-modal').style.display = 'none';
+        if (cropperInstance) cropperInstance.destroy();
+    }
+
+    function finishCrop() {
+        if (!cropperInstance) return;
+        const canvas = cropperInstance.getCroppedCanvas({ width: 500, height: 500 }); // Nén về 500x500
+        canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            document.getElementById('preview-container').innerHTML += `<img src="${url}">`;
+            croppedImagesFiles.push(blob);
+            closeCropper();
+        }, 'image/jpeg', 0.8);
+    }
+
+    // ==========================================
+    // 5. GỬI LÊN SUPABASE
+    // ==========================================
+    async function submitToSupabase() {
+        if(croppedImagesFiles.length === 0) {
+            alert("Vui lòng chụp ít nhất 1 ảnh khuôn mặt!");
+            return;
+        }
+        const cccd = document.getElementById('cccd_number').value;
+        if(!cccd) return alert("Chưa có thông tin CCCD!");
+
+        showLoading(true);
+        let uploadedUrls = [];
+        let storagePaths = [];
+
+        try {
+            // Upload ảnh lên Storage
+            for (let i = 0; i < croppedImagesFiles.length; i++) {
+                const blob = croppedImagesFiles[i];
+                const fileName = `${cccd}_${Date.now()}_${i}.jpg`;
+                
+                const { data, error } = await supabase.storage.from(BUCKET_NAME).upload(fileName, blob);
+                if (error) throw error;
+
+                const { data: publicUrlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName);
+                uploadedUrls.push(publicUrlData.publicUrl);
+                storagePaths.push(fileName);
+            }
+
+            // Ghi vào bảng dang_ky_ra_vao
+            const formData = {
+                subject_id: cccd, 
+                ma_thiet_bi: maThietBi,
+                ho_ten: document.getElementById('ho_ten').value,
+                cccd_number: cccd,
+                phap_danh: document.getElementById('phap_danh').value,
+                sdt_lien_lac: document.getElementById('sdt').value,
+                dao_trang_id: document.getElementById('dao_trang_id').value ? parseInt(document.getElementById('dao_trang_id').value) : null,
+                qr_cccd: rawQRString,
+                image_urls: uploadedUrls, 
+                storage_file_paths: storagePaths, 
+                approval_status: 'cho_duyet',
+                is_synced: false
+            };
+
+            const { error: insertError } = await supabase.from('dang_ky_ra_vao').insert([formData]);
+            if (insertError) throw insertError;
+
+            alert("✅ Đăng ký thành công!");
+            window.location.reload(); 
+
+        } catch (err) {
+            alert("Lỗi tải lên: " + err.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function showLoading(show) {
+        document.getElementById('loading-screen').style.display = show ? 'flex' : 'none';
+    }
+</script>
 </body>
 </html>
