@@ -3,312 +3,596 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Siêu Quét CCCD (Hybrid Trí Tuệ)</title>
-    <!-- Thư viện dự phòng cho iOS -->
+    <title>Ghi Danh Nhận Diện</title>
+    
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <style>
-        :root {
-            --primary-color: #2563EB;
-            --danger-color: #EF4444;
-            --success-color: #10B981;
-            --bg-color: #F3F4F6;
-            --card-bg: #FFFFFF;
+        :root { 
+            --primary-color: #3b82f6; 
+            --danger-color: #f43f5e; 
+            --success-color: #14b8a6; 
+            --btn-capture: #0ea5e9; 
+            --bg-color: #f0f9ff; 
+            --card-bg: #FFFFFF; 
         }
-
-        * {
-            box-sizing: border-box; margin: 0; padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            display: flex; justify-content: center; align-items: center;
-            min-height: 100vh; padding: 15px;
-        }
-
-        .container {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-            padding: 24px; width: 100%; max-width: 420px;
-            text-align: center;
-        }
-
-        h1 { font-size: 1.35rem; margin-bottom: 8px; color: #1F2937; }
-        .device-badge {
-            display: inline-block; padding: 4px 10px; border-radius: 20px;
-            font-size: 0.8rem; font-weight: 600; margin-bottom: 20px;
-        }
-        .badge-android { background-color: #D1FAE5; color: #047857; }
-        .badge-ios { background-color: #DBEAFE; color: #1D4ED8; }
-
-        /* --- UI CHO ANDROID (LIVE CAMERA) --- */
-        #android-section { display: none; }
-        .video-wrapper {
-            position: relative; width: 100%; border-radius: 12px;
-            background-color: #000; margin-bottom: 15px; aspect-ratio: 4/3;
-            overflow: hidden; display: flex; align-items: center; justify-content: center;
-        }
-        video { width: 100%; height: 100%; object-fit: cover; display: none; }
-        .scan-line {
-            width: 100%; height: 2px; background: #10B981;
-            position: absolute; top: 0; animation: scan 2s infinite linear; display: none;
-        }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
-
-        /* --- UI CHO IOS (CHỤP ẢNH) --- */
-        #ios-section { display: none; padding: 20px 0; }
-        input[type="file"] { display: none; }
-        .loading { display: none; margin-top: 15px; color: var(--primary-color); font-weight: 600; }
-
-        /* --- NÚT BẤM CHUNG --- */
-        .btn {
-            padding: 14px 20px; border: none; border-radius: 10px;
-            font-size: 1.05rem; font-weight: 600; cursor: pointer;
-            color: white; width: 100%; transition: 0.2s;
-            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .btn:active { transform: scale(0.97); }
-        .btn-start { background-color: var(--primary-color); }
-        .btn-stop { background-color: var(--danger-color); display: none; margin-top: 10px;}
-        .btn-capture { background-color: var(--primary-color); box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.3); }
-
-        /* --- KẾT QUẢ --- */
-        .result-box {
-            background-color: #ECFDF5; border: 2px solid #34D399;
-            border-radius: 12px; padding: 16px; margin-top: 20px;
-            display: none; text-align: left;
-        }
-        .result-item { margin-bottom: 8px; font-size: 0.95rem; color: #065F46; }
-        .result-item strong { color: #047857; display: inline-block; width: 90px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); display: flex; justify-content: center; min-height: 100vh; padding: 15px; align-items: flex-start;}
         
-        /* Div ẩn để khởi tạo thư viện js cho iOS */
+        .container { background-color: var(--card-bg); border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); padding: 24px; width: 100%; max-width: 420px; text-align: center; margin-top: 15px; position: relative;}
+        h1 { font-size: 1.35rem; margin-bottom: 8px; color: #334155; }
+        
+        .device-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-bottom: 15px; background-color: #dbeafe; color: #1d4ed8; }
+        
+        #android-section { display: none; }
+        .video-wrapper { position: relative; width: 100%; border-radius: 12px; background-color: #0f172a; margin-bottom: 15px; aspect-ratio: 4/3; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; object-fit: cover; display: none; }
+        #ios-section { display: none; padding: 5px 0 15px 0; }
+        
+        .form-group { text-align: left; margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 5px; color: #475569;}
+        .form-control { width: 100%; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 1rem; color: #334155; transition: 0.2s;}
+        .form-control:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+        
+        .cropped-preview { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 0; }
+        .cropped-preview img { width: calc(33.33% - 8px); aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 2px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .img-old { opacity: 0.8; border-color: #cbd5e1 !important; } 
+        
+        .btn { padding: 14px 20px; border: none; border-radius: 999px; font-size: 1.05rem; font-weight: 600; cursor: pointer; color: white; width: 100%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);}
+        .btn:active { transform: scale(0.98); }
+        .btn-start { background-color: var(--primary-color); }
+        .btn-stop { background-color: var(--danger-color); display: none; }
+        .btn-success { background-color: var(--success-color); box-shadow: 0 4px 12px -2px rgba(20, 184, 166, 0.3); }
+        .btn-capture { background-color: var(--btn-capture); }
+        .btn-outline { background-color: transparent; border: 2px solid #cbd5e1; color: #64748b; box-shadow: none; font-size: 0.9rem; padding: 10px;}
+        
+        .admin-float-btn { position: fixed; bottom: 20px; left: 20px; width: auto; background: #fff; padding: 10px 16px; border-radius: 12px; z-index: 50; border: 2px solid #fcd34d; color: #b45309; font-size: 0.9rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: 0.2s;}
+        .admin-float-btn:active { transform: scale(0.95); }
+        
+        #registration-form { display: none; margin-top: 10px; padding-top: 20px; border-top: 2px dashed #e2e8f0; }
         #qr-reader-hidden { display: none; }
+        
+        .overlay-loading { display:none; position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(255,255,255,0.9); z-index: 1000; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; flex-direction: column; color:#475569;}
+        .spinner { border: 4px solid #f1f5f9; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 45px; height: 45px; animation: spin 1s linear infinite; margin-bottom:15px;}
+        .badge-edit { background-color: #fef3c7; color: #d97706; padding: 8px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 15px; display: none; font-weight: 600; border: 1px dashed #f59e0b;}
+
+        .history-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem; }
+        .history-table th { padding: 8px 4px; color: #475569; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; background: #f8fafc;}
+        .history-table td { padding: 8px 4px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
+    <button id="admin-btn" class="admin-float-btn" onclick="verifyAdmin()">🔑 Cấp quyền</button>
+
     <div class="container">
-        <h1>Quét Thông Tin CCCD</h1>
+        <h1>Ghi Danh Nhận Diện</h1>
         <div id="device-info" class="device-badge">Đang kiểm tra thiết bị...</div>
 
-        <!-- GIAO DIỆN DÀNH CHO ANDROID (BARCODE API) -->
-        <div id="android-section">
-            <div class="video-wrapper">
-                <video id="video" autoplay playsinline></video>
-                <div class="scan-line" id="scan-line"></div>
-                <p id="placeholder-text" style="color: #6B7280; font-size: 0.9rem;">Camera đã tắt</p>
+        <div style="margin-bottom: 20px;">
+            <button class="btn btn-outline" style="margin-bottom:0;" onclick="viewHistory()">📋 Xem dữ liệu đã nhập</button>
+        </div>
+
+        <div id="camera-container">
+            <div id="android-section">
+                <div class="video-wrapper">
+                    <video id="video" autoplay playsinline></video>
+                    <p id="placeholder-text" style="color: #94a3b8; font-size: 0.9rem;">Camera đang tắt</p>
+                </div>
+                <button id="start-btn" class="btn btn-start" onclick="startAndroidCamera()">🎥 Bật Camera Quét CCCD</button>
+                <button id="stop-btn" class="btn btn-stop" onclick="stopAndroidCamera()">🛑 Tắt Camera</button>
             </div>
-            <button id="start-btn" class="btn btn-start" onclick="startAndroidCamera()">🎥 Bật Camera Quét</button>
-            <button id="stop-btn" class="btn btn-stop" onclick="stopAndroidCamera()">🛑 Tắt Camera</button>
+            
+            <div id="ios-section">
+                <label for="camera-input-qr" class="btn btn-start">📸 Chụp để quét CCCD</label>
+                <input type="file" id="camera-input-qr" accept="image/*" capture="environment" onchange="processIOSImage(event)" style="display:none;">
+            </div>
+
+            <button class="btn btn-capture" onclick="pasteQRCodeString()">📋 Dán QR Code (Dành cho iOS/Khác)</button>
+            <button class="btn btn-outline" onclick="openManualForm()">✏️ Nhập thủ công (Không có CCCD)</button>
         </div>
 
-        <!-- GIAO DIỆN DÀNH CHO IOS (CAPTURE ẢNH) -->
-        <div id="ios-section">
-            <label for="camera-input" class="btn btn-capture">📸 Mở Camera Chụp CCCD</label>
-            <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="processIOSImage(event)">
-            <div id="loading" class="loading">⏳ Đang xử lý hình ảnh siêu tốc...</div>
-        </div>
+        <div id="registration-form">
+            <div id="badge-edit" class="badge-edit">⚠️ Đang cập nhật dữ liệu phật tử cũ</div>
+            
+            <div class="form-group">
+                <label>Đạo Tràng</label>
+                <select id="dao_trang_id" class="form-control">
+                    <option value="">-- Chọn Đạo Tràng --</option>
+                </select>
+            </div>
 
-        <!-- KHUNG KẾT QUẢ CHUNG -->
-        <div id="result-box" class="result-box">
-            <div id="parsed-data"></div>
+            <div class="form-group">
+                <label>Số CCCD / Mã định danh (9 đến 12 số)</label>
+                <input type="text" id="cccd_number" class="form-control" inputmode="numeric" placeholder="Nhập số CCCD..." onblur="validateCCCD()">
+            </div>
+            <div class="form-group">
+                <label>Họ và Tên</label>
+                <input type="text" id="ho_ten" class="form-control" placeholder="Nhập họ tên...">
+            </div>
+            <div class="form-group">
+                <label>Pháp Danh</label>
+                <input type="text" id="phap_danh" class="form-control" placeholder="Nhập pháp danh...">
+            </div>
+            <div class="form-group">
+                <label>Số điện thoại</label>
+                <!-- Thêm sự kiện oninput để tự phân tách SĐT hiển thị -->
+                <input type="tel" id="sdt_lien_lac" class="form-control" inputmode="numeric" placeholder="Nhập số điện thoại..." oninput="formatPhoneInput(this)">
+            </div>
+
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Ảnh Khuôn Mặt (Khoảng cách 1 tay, rõ mặt)</label>
+                <label for="face-input" class="btn btn-capture">📸 Bấm để chụp khuôn mặt</label>
+                <input type="file" id="face-input" accept="image/*" capture="environment" style="display:none;" onchange="captureFullFrame(event)">
+                
+                <div id="preview-container" class="cropped-preview"></div>
+            </div>
+
+            <button id="submit-btn" class="btn btn-success" onclick="submitToSupabase()">Lưu Thông Tin</button>
+            <button class="btn btn-outline" onclick="window.location.reload()" style="margin-top: 5px;">Hủy / Quay lại</button>
         </div>
         
-        <!-- Element ẩn phục vụ cho Html5Qrcode -->
         <div id="qr-reader-hidden"></div>
     </div>
 
+    <!-- POPUP DANH SÁCH LỊCH SỬ -->
+    <div id="history-modal" class="overlay-loading" style="background: rgba(0,0,0,0.6);">
+        <div style="background: #fff; width: 95%; max-width: 650px; max-height: 85vh; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; text-align: left;">
+            <h3 style="margin-bottom: 5px; color: #334155; text-align: center;">Danh Sách Đã Nhập</h3>
+            <p id="history-subtitle" style="font-size: 0.75rem; color: #64748b; text-align: center; margin-bottom: 10px;">Dữ liệu của máy này</p>
+            
+            <div style="overflow-y: auto; flex: 1; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Thiết bị</th>
+                            <th>Đạo tràng</th>
+                            <th>Pháp danh</th>
+                            <th>Họ Tên</th>
+                            <th>SĐT</th>
+                            <th>CCCD</th>
+                            <th>Ngày</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 12px;">
+                <button class="btn btn-success" style="margin-bottom: 0; flex: 1;" onclick="downloadExcel()">⬇️ Tải file Excel</button>
+                <button class="btn btn-stop" style="display: block; margin-bottom: 0; flex: 1;" onclick="document.getElementById('history-modal').style.display='none'">❌ Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-screen" class="overlay-loading">
+        <div class="spinner"></div>
+        <span id="loading-text">Đang xử lý dữ liệu...</span>
+    </div>
+
     <script>
-        // --- CÁC BIẾN TOÀN CỤC ---
+        const SUPABASE_URL = 'https://rdmqtewpxizvyqjjmkss.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkbXF0ZXdweGl6dnlxampta3NzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2OTY0MjksImV4cCI6MjEwNDI3MjQyOX0.Ng2X_leEmkDWPBt51Du5OaclOIzTia5OtAmMa6CXAqc'; 
+        const BUCKET_NAME = 'faces'; 
+
+        let db = null;
+        try { db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (err) {}
+        
         const deviceInfo = document.getElementById('device-info');
         const androidSection = document.getElementById('android-section');
         const iosSection = document.getElementById('ios-section');
-        const resultBox = document.getElementById('result-box');
-        const parsedData = document.getElementById('parsed-data');
-        
-        // Biến cho Android
+        const cameraContainer = document.getElementById('camera-container');
+        const regForm = document.getElementById('registration-form');
         const video = document.getElementById('video');
-        const scanLine = document.getElementById('scan-line');
-        const placeholderText = document.getElementById('placeholder-text');
-        const startBtn = document.getElementById('start-btn');
-        const stopBtn = document.getElementById('stop-btn');
-        let stream = null;
-        let barcodeDetector = null;
-        let scanning = false;
+        
+        let stream = null, barcodeDetector = null, scanning = false, html5QrCode = null;
+        let rawQRString = "", jsonCccdData = null, croppedImagesFiles = []; 
+        let isEditMode = false, existingImageUrls = [], existingStoragePaths = [];
+        let daoTrangMap = {}; // Lưu ánh xạ id -> tên đạo tràng
+        
+        let isAdmin = false; 
+        let currentHistoryData = []; 
 
-        // Biến cho iOS
-        let html5QrCode = null;
-        const loadingDiv = document.getElementById('loading');
+        let maThietBi = localStorage.getItem('ma_thiet_bi');
+        if(!maThietBi) {
+            maThietBi = 'DEV-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+            localStorage.setItem('ma_thiet_bi', maThietBi);
+        }
 
-        // --- BƯỚC 1: NHẬN DIỆN THIẾT BỊ LÚC VỪA MỞ TRANG ---
-        window.onload = () => {
-            // Kiểm tra xem có phải iOS không (iPhone, iPad, iPod)
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-            
-            // Kiểm tra xem trình duyệt có lõi BarcodeDetector gốc không
-            const hasBarcodeAPI = ('BarcodeDetector' in window);
-
-            if (!isIOS && hasBarcodeAPI) {
-                // LÀ ANDROID VÀ CÓ HỖ TRỢ API GỐC
-                deviceInfo.innerText = "🤖 Chế độ siêu tốc (Android Native)";
-                deviceInfo.className = "device-badge badge-android";
-                androidSection.style.display = 'block';
-                
+        window.onload = async () => {
+            detectDevice(); 
+            if (db) {
                 try {
-                    barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
-                } catch(e) {
-                    // Nếu lỗi khởi tạo, tự động rớt về chế độ iOS (dự phòng)
-                    fallbackToIOSMode();
-                }
-            } else {
-                // LÀ IPHONE HOẶC TRÌNH DUYỆT KHÔNG HỖ TRỢ
-                fallbackToIOSMode();
+                    const { data, error } = await db.from('danh_muc_dao_trang').select('id, dao_trang');
+                    if (data && data.length > 0) {
+                        const select = document.getElementById('dao_trang_id');
+                        const savedDaoTrang = localStorage.getItem('saved_dao_trang_id');
+                        data.forEach(item => {
+                            daoTrangMap[item.id] = item.dao_trang; // Lưu vào từ điển ánh xạ
+                            const isSelected = (savedDaoTrang == item.id) ? "selected" : "";
+                            select.innerHTML += `<option value="${item.id}" ${isSelected}>${item.dao_trang}</option>`;
+                        });
+                    }
+                } catch (e) {}
             }
         };
 
-        function fallbackToIOSMode() {
-            deviceInfo.innerText = "🍎 Chế độ chụp nét (iOS / Fallback)";
-            deviceInfo.className = "device-badge badge-ios";
-            iosSection.style.display = 'block';
-            androidSection.style.display = 'none';
-            // Khởi tạo engine quét từ ảnh cho iOS
-            html5QrCode = new Html5Qrcode("qr-reader-hidden");
+        // --- KIỂM TRA ĐỘ DÀI CCCD (Trên 8 và dưới 13 ký tự, tức là từ 9 đến 12) ---
+        function validateCCCD() {
+            const cccdInput = document.getElementById('cccd_number');
+            const val = cccdInput.value.trim();
+            if (val.length > 0 && (val.length <= 8 || val.length >= 13)) {
+                alert("⚠️ Số CCCD không hợp lệ! Số CCCD phải có từ 9 đến 12 chữ số.");
+                cccdInput.focus();
+                return false;
+            }
+            if (val.length >= 9) {
+                checkExistingData();
+            }
+            return true;
         }
 
+        // --- ĐỊNH DẠNG SỐ ĐIỆN THOẠI HIỂN THỊ (VD: 0937-856-896) ---
+        function formatPhoneInput(input) {
+            // Lọc chỉ lấy các ký tự số, bỏ qua ký tự phân tách cũ nếu có
+            let cleaned = input.value.replace(/\D/g, '');
+            if (cleaned.length > 10) cleaned = cleaned.slice(0, 10); // Giới hạn tối đa số điện thoại cơ bản
+            
+            let formatted = cleaned;
+            if (cleaned.length > 7) {
+                formatted = cleaned.slice(0, 4) + '-' + cleaned.slice(4, 7) + '-' + cleaned.slice(7);
+            } else if (cleaned.length > 4) {
+                formatted = cleaned.slice(0, 4) + '-' + cleaned.slice(4);
+            }
+            input.value = formatted;
+        }
 
-        // --- BƯỚC 2: LOGIC QUÉT DÀNH RIÊNG CHO ANDROID ---
-        async function startAndroidCamera() {
-            resultBox.style.display = 'none';
+        async function verifyAdmin() {
+            const pass = prompt("Vui lòng nhập mật khẩu Quản trị:");
+            if (!pass) return;
+
             try {
-                // Mở luồng Full HD
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
-                });
-                video.srcObject = stream;
-                video.style.display = 'block';
-                placeholderText.style.display = 'none';
-                scanLine.style.display = 'block';
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'block';
-
-                video.onloadedmetadata = () => {
-                    scanning = true;
-                    requestAnimationFrame(scanLoop);
-                };
+                const response = await fetch('config.json');
+                const config = await response.json();
+                
+                if (pass === config.admin_password) {
+                    isAdmin = true;
+                    alert("✅ Đăng nhập Admin thành công!");
+                    document.getElementById('admin-btn').style.display = 'none'; 
+                } else {
+                    alert("❌ Mật khẩu không chính xác!");
+                }
             } catch (err) {
-                alert("Lỗi mở camera Android: " + err.message);
-                fallbackToIOSMode(); // Cứu cánh: Lỗi camera thì ném qua chế độ chụp ảnh
+                alert("⚠️ Không tìm thấy file config.json hoặc file bị lỗi cấu trúc.");
             }
         }
 
+        async function viewHistory() {
+            if (!db) return alert("Chưa kết nối dữ liệu!");
+            showLoading(true, "Đang tải danh sách...");
+            
+            try {
+                // Lấy toàn bộ các trường theo đúng thứ tự yêu cầu
+                let query = db.from('dang_ky_ra_vao')
+                              .select('ma_thiet_bi, dao_trang_id, phap_danh, ho_ten, sdt_lien_lac, cccd_number, created_at')
+                              .order('created_at', { ascending: false });
+                
+                if (!isAdmin) {
+                    query = query.eq('ma_thiet_bi', maThietBi).limit(50);
+                    document.getElementById('history-subtitle').innerText = `Chỉ hiển thị dữ liệu của máy này (${maThietBi})`;
+                } else {
+                    document.getElementById('history-subtitle').innerText = "Chế độ Admin: Hiển thị toàn bộ dữ liệu hệ thống";
+                }
+
+                const { data, error } = await query;
+                if (error) throw error;
+
+                currentHistoryData = data; 
+                const tbody = document.getElementById('history-table-body');
+                tbody.innerHTML = "";
+
+                if(data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Chưa có dữ liệu nào.</td></tr>`;
+                } else {
+                    data.forEach(row => {
+                        const timeStr = new Date(row.created_at).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'});
+                        const tenDaoTrang = daoTrangMap[row.dao_trang_id] || '';
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${row.ma_thiet_bi || ''}</td>
+                                <td>${tenDaoTrang}</td>
+                                <td>${row.phap_danh || ''}</td>
+                                <td><strong>${row.ho_ten || 'Trống'}</strong></td>
+                                <td>${row.sdt_lien_lac || ''}</td>
+                                <td>${row.cccd_number || ''}</td>
+                                <td>${timeStr}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                document.getElementById('history-modal').style.display = 'flex';
+            } catch (err) {
+                alert("Lỗi tải lịch sử: " + err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // --- XUẤT FILE EXCEL ĐÚNG THỨ TỰ CỘT YÊU CẦU ---
+        function downloadExcel() {
+            if (!currentHistoryData || currentHistoryData.length === 0) {
+                return alert("Không có dữ liệu nào để xuất file!");
+            }
+            try {
+                const excelData = currentHistoryData.map(row => ({
+                    "ma_thiet_bi": row.ma_thiet_bi || "",
+                    "dao_trang": daoTrangMap[row.dao_trang_id] || "", // Cột Đạo Tràng nằm trước Pháp Danh
+                    "phap_danh": row.phap_danh || "",
+                    "ho_ten": row.ho_ten || "",
+                    "sdt_lien_lac": row.sdt_lien_lac || "",
+                    "cccd_number": row.cccd_number || "",
+                    "created_at": new Date(row.created_at).toLocaleString('vi-VN')
+                }));
+                
+                const worksheet = XLSX.utils.json_to_sheet(excelData);
+                worksheet['!cols'] = [ {wpx: 100}, {wpx: 120}, {wpx: 100}, {wpx: 140}, {wpx: 100}, {wpx: 100}, {wpx: 130} ];
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Lich_Su_Dang_Ky");
+                XLSX.writeFile(workbook, `DuLieu_${Date.now()}.xlsx`);
+            } catch (error) {
+                alert("Lỗi tạo file Excel: " + error.message);
+            }
+        }
+
+        function detectDevice() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            if (!isIOS && ('BarcodeDetector' in window)) {
+                deviceInfo.innerText = "🤖 Camera Quét Siêu Tốc (Android)";
+                androidSection.style.display = 'block';
+                try { barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) { fallbackToIOSMode(); }
+            } else { fallbackToIOSMode(); }
+        }
+        function fallbackToIOSMode() {
+            deviceInfo.innerText = "🍎 Camera Chụp Quét (iOS/Tương thích)";
+            iosSection.style.display = 'block';
+            androidSection.style.display = 'none';
+            html5QrCode = new Html5Qrcode("qr-reader-hidden");
+        }
+
+        function pasteQRCodeString() {
+            const pastedText = prompt("Dán nội dung chuỗi QR Code từ CCCD vào đây:");
+            if (!pastedText) return;
+            displayResult(pastedText.trim());
+        }
+
+        function openManualForm() {
+            if (typeof stopAndroidCamera === "function") stopAndroidCamera();
+            cameraContainer.style.display = 'none';
+            regForm.style.display = 'block';
+            document.getElementById('admin-btn').style.display = 'none';
+        }
+
+        async function startAndroidCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                document.getElementById('placeholder-text').style.display = 'none';
+                document.getElementById('start-btn').style.display = 'none';
+                document.getElementById('stop-btn').style.display = 'block';
+                video.onloadedmetadata = () => { scanning = true; requestAnimationFrame(scanLoop); };
+            } catch (err) { fallbackToIOSMode(); }
+        }
         async function scanLoop() {
             if (!scanning) return;
             if (video.readyState === video.HAVE_ENOUGH_DATA && barcodeDetector) {
                 try {
                     const barcodes = await barcodeDetector.detect(video);
-                    if (barcodes.length > 0) {
-                        displayResult(barcodes[0].rawValue);
-                        stopAndroidCamera();
-                        return; // Quét xong thì dừng vòng lặp
-                    }
-                } catch (e) {
-                    console.error(e);
-                }
+                    if (barcodes.length > 0) { displayResult(barcodes[0].rawValue); stopAndroidCamera(); return; }
+                } catch (e) {}
             }
-            requestAnimationFrame(scanLoop); // Lặp lại liên tục
+            requestAnimationFrame(scanLoop);
         }
-
         function stopAndroidCamera() {
             scanning = false;
             if (stream) stream.getTracks().forEach(track => track.stop());
             video.style.display = 'none';
-            scanLine.style.display = 'none';
-            placeholderText.style.display = 'block';
-            startBtn.style.display = 'block';
-            stopBtn.style.display = 'none';
+            document.getElementById('placeholder-text').style.display = 'block';
+            document.getElementById('start-btn').style.display = 'block';
+            document.getElementById('stop-btn').style.display = 'none';
         }
 
-
-        // --- BƯỚC 3: LOGIC QUÉT DÀNH RIÊNG CHO IOS (VÀ DỰ PHÒNG) ---
-        // --- BƯỚC 3: LOGIC QUÉT DÀNH RIÊNG CHO IOS (ĐÃ FIX LỖI ẢNH QUÁ TO) ---
         function processIOSImage(event) {
             const file = event.target.files[0];
             if (!file) return;
-
-            resultBox.style.display = 'none';
-            loadingDiv.style.display = 'block';
-
-            // Dùng FileReader để đọc ảnh
+            showLoading(true, "Đang quét mã QR...");
             const reader = new FileReader();
             reader.onload = function (e) {
                 const img = new Image();
                 img.onload = function () {
-                    // Tạo Canvas để nén ảnh
                     const canvas = document.createElement("canvas");
-                    const MAX_SIZE = 1200; // Giới hạn kích thước ảnh
-                    let width = img.width;
-                    let height = img.height;
-
-                    // Tính toán tỷ lệ thu nhỏ
-                    if (width > height && width > MAX_SIZE) {
-                        height *= MAX_SIZE / width;
-                        width = MAX_SIZE;
-                    } else if (height > MAX_SIZE) {
-                        width *= MAX_SIZE / height;
-                        height = MAX_SIZE;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext("2d");
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    // Chuyển ảnh đã nén thành File mới
+                    const MAX_SIZE = 1200; 
+                    let width = img.width, height = img.height;
+                    if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                    canvas.width = width; canvas.height = height;
+                    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
                     canvas.toBlob((blob) => {
                         const resizedFile = new File([blob], "resized_image.jpg", { type: "image/jpeg" });
-                        
-                        // Đưa ảnh đã thu nhỏ vào thư viện để quét
-                        html5QrCode.scanFile(resizedFile, true)
-                            .then(decodedText => {
-                                loadingDiv.style.display = 'none';
-                                displayResult(decodedText);
-                            })
-                            .catch(err => {
-                                loadingDiv.style.display = 'none';
-                                alert("Không tìm thấy mã. Hãy đưa camera lại GẦN MÃ QR HƠN để mã QR chiếm diện tích lớn trong ảnh nhé!");
-                            });
+                        html5QrCode.scanFile(resizedFile, true).then(decodedText => { showLoading(false); displayResult(decodedText); }).catch(err => { showLoading(false); alert("Chưa tìm thấy mã QR. Vui lòng chụp gần hoặc dùng nút 'Dán QR Code'!"); });
                     }, "image/jpeg", 0.9);
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
-            
-            event.target.value = ''; // Reset để chụp lại được
+            event.target.value = ''; 
         }
 
-
-        // --- BƯỚC 4: HÀM XỬ LÝ KẾT QUẢ CHUNG CHO CẢ 2 HỆ ---
         function displayResult(data) {
+            rawQRString = data;
             const parts = data.split('|');
-            let htmlContent = '';
-
-            // Kiểm tra nếu là chuỗi CCCD
             if (parts.length >= 6) {
-                htmlContent = `
-                    <div class="result-item"><strong>Số CCCD:</strong> ${parts[0]}</div>
-                    <div class="result-item"><strong>CMND cũ:</strong> ${parts[1]}</div>
-                    <div class="result-item"><strong>Họ tên:</strong> ${parts[2]}</div>
-                    <div class="result-item"><strong>Ngày sinh:</strong> ${parts[3]}</div>
-                    <div class="result-item"><strong>Giới tính:</strong> ${parts[4]}</div>
-                    <div class="result-item"><strong>Địa chỉ:</strong> ${parts[5]}</div>
-                `;
+                document.getElementById('cccd_number').value = parts[0];
+                document.getElementById('ho_ten').value = parts[2];
+                jsonCccdData = { "so_cccd": parts[0], "cmnd_cu": parts[1], "ho_ten": parts[2], "ngay_sinh": parts[3], "gioi_tinh": parts[4], "dia_chi": parts[5], "ngay_cap": parts[6] || "" };
             } else {
-                htmlContent = `<div class="result-item"><strong>Kết quả:</strong> ${data}</div>`;
+                alert("Chuỗi dữ liệu QR không đúng định dạng CCCD!"); return;
+            }
+            openManualForm();
+            checkExistingData(); 
+        }
+
+        async function checkExistingData() {
+            if(!db) return;
+            const cccd = document.getElementById('cccd_number').value.trim();
+            if(!cccd || cccd.length < 9) return; 
+
+            showLoading(true, "Kiểm tra hệ thống...");
+            try {
+                const { data, error } = await db.from('dang_ky_ra_vao').select('*').eq('cccd_number', cccd).single();
+                
+                if (data) {
+                    if (data.ma_thiet_bi !== maThietBi && !isAdmin) {
+                        alert("⚠️ CCCD này đã được đăng ký bởi một máy khác. Bạn không có quyền xem hay sửa chữa trừ khi nhập mật khẩu Admin.");
+                        document.getElementById('cccd_number').value = ''; 
+                        showLoading(false);
+                        return;
+                    }
+                    isEditMode = true;
+                    document.getElementById('badge-edit').style.display = 'block';
+                    document.getElementById('submit-btn').innerText = "Cập Nhật Thông Tin";
+                    
+                    if(data.ho_ten) document.getElementById('ho_ten').value = data.ho_ten;
+                    if(data.phap_danh) document.getElementById('phap_danh').value = data.phap_danh;
+                    // Lấy SĐT thô từ DB gán vào ô nhập
+                    if(data.sdt_lien_lac) {
+                        document.getElementById('sdt_lien_lac').value = data.sdt_lien_lac;
+                    }
+                    if(data.dao_trang_id) document.getElementById('dao_trang_id').value = data.dao_trang_id;
+                    
+                    existingImageUrls = data.image_urls || [];
+                    existingStoragePaths = data.storage_file_paths || [];
+                    renderPreviewGrid();
+                } else {
+                    isEditMode = false;
+                    document.getElementById('badge-edit').style.display = 'none';
+                    document.getElementById('submit-btn').innerText = "Lưu Thông Tin";
+                    existingImageUrls = [];
+                    existingStoragePaths = [];
+                    renderPreviewGrid();
+                }
+            } catch(e) { } finally { showLoading(false); }
+        }
+
+        function renderPreviewGrid() {
+            const container = document.getElementById('preview-container');
+            container.innerHTML = ""; 
+            existingImageUrls.forEach(url => { container.innerHTML += `<img src="${url}" class="img-old">`; });
+            croppedImagesFiles.forEach(blob => { const url = URL.createObjectURL(blob); container.innerHTML += `<img src="${url}">`; });
+        }
+
+        function captureFullFrame(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            showLoading(true, "Đang tối ưu ảnh...");
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = function () {
+                    const canvas = document.createElement("canvas");
+                    const MAX_SIZE = 1920; 
+                    let width = img.width, height = img.height;
+                    if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                    canvas.width = width; canvas.height = height;
+                    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => {
+                        croppedImagesFiles.push(blob);
+                        renderPreviewGrid(); 
+                        showLoading(false);
+                    }, 'image/jpeg', 0.85);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            event.target.value = ''; 
+        }
+
+        async function submitToSupabase() {
+            if(!db) return alert("Cần kết nối Supabase!");
+            
+            const cccd = document.getElementById('cccd_number').value.trim();
+            if(cccd.length <= 8 || cccd.length >= 13) {
+                return alert("⚠️ Số CCCD bắt buộc phải từ 9 đến 12 chữ số!");
             }
 
-            parsedData.innerHTML = htmlContent;
-            resultBox.style.display = 'block';
+            const rawPhone = document.getElementById('sdt_lien_lac').value.replace(/\D/g, '');
+            if(rawPhone.length <= 9) {
+                return alert("⚠️ Số điện thoại phải có trên 9 chữ số!");
+            }
+
+            if(croppedImagesFiles.length === 0 && existingImageUrls.length === 0) { 
+                return alert("Vui lòng chụp ít nhất 1 ảnh khuôn mặt!"); 
+            }
+
+            showLoading(true, "Đang xử lý dữ liệu...");
+            let newlyUploadedUrls = [], newlyUploadedPaths = [];
+
+            try {
+                const daoTrangValue = document.getElementById('dao_trang_id').value;
+                if(daoTrangValue) localStorage.setItem('saved_dao_trang_id', daoTrangValue);
+
+                for (let i = 0; i < croppedImagesFiles.length; i++) {
+                    const blob = croppedImagesFiles[i];
+                    const fileName = `${cccd}_${Date.now()}_${i}.jpg`;
+                    const { data, error } = await db.storage.from(BUCKET_NAME).upload(fileName, blob);
+                    if (error) throw error;
+                    const { data: publicUrlData } = db.storage.from(BUCKET_NAME).getPublicUrl(fileName);
+                    newlyUploadedUrls.push(publicUrlData.publicUrl);
+                    newlyUploadedPaths.push(fileName);
+                }
+
+                const finalImageUrls = [...existingImageUrls, ...newlyUploadedUrls];
+                const finalStoragePaths = [...existingStoragePaths, ...newlyUploadedPaths];
+
+                const formData = {
+                    subject_id: cccd, 
+                    ma_thiet_bi: maThietBi, 
+                    phap_danh: document.getElementById('phap_danh').value,
+                    ho_ten: document.getElementById('ho_ten').value, 
+                    sdt_lien_lac: rawPhone, // Lưu chuỗi sđt thô thuần nhất vào CSDL theo yêu cầu
+                    cccd_number: cccd, 
+                    is_active: true, 
+                    dao_trang_id: daoTrangValue ? parseInt(daoTrangValue) : null,
+                    image_urls: finalImageUrls, 
+                    storage_file_paths: finalStoragePaths
+                };
+
+                if(jsonCccdData) formData.cccd_data = jsonCccdData;
+                if(rawQRString) formData.qr_cccd = rawQRString;
+
+                if (isEditMode) {
+                    formData.is_synced = false; 
+                    const { error } = await db.from('dang_ky_ra_vao').update(formData).eq('cccd_number', cccd);
+                    if (error) throw error;
+                    alert("✅ Đã cập nhật thành công!");
+                } else {
+                    formData.approval_status = 'cho_duyet'; 
+                    formData.is_synced = false;
+                    const { error } = await db.from('dang_ky_ra_vao').insert([formData]);
+                    if (error) throw error;
+                    alert("✅ Đăng ký mới thành công!");
+                }
+                window.location.reload(); 
+            } catch (err) { alert("Lỗi tải lên: " + err.message); } finally { showLoading(false); }
+        }
+
+        function showLoading(show, text="Đang xử lý dữ liệu...") {
+            document.getElementById('loading-text').innerText = text;
+            document.getElementById('loading-screen').style.display = show ? 'flex' : 'none';
         }
     </script>
 </body>
